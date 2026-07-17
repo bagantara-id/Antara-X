@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CC-OS V2.0</title>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/login.css">
+    <link rel="stylesheet" href="css/desktop.css">
+    <link rel="stylesheet" href="css/components.css">
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyD1O3z2mw3fKorKAAqI3ZMZz9qlNnZqKE4",
+            authDomain: "bagantara-id.firebaseapp.com",
+            databaseURL: "https://bagantara-id-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "bagantara-id",
+            storageBucket: "bagantara-id.firebasestorage.app",
+            messagingSenderId: "76112622878",
+            appId: "1:76112622878:web:d4800368f06e1cc04c450f"
+        };
+        
+        // Mencegah inisialisasi ganda jika file eksternal masih terpanggil
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        
+        // Ekspos ke Window untuk diakses semua modul
+        window.database = firebase.database();
+        window.auth = firebase.auth();
+    </script>
+</head>
+<body>
+
+    <div id="gerbangOtorisasi" class="login-wrapper">
+        <div class="login-box">
+            <div class="login-header">
+                <i class="fa-solid fa-shield-halved fa-beat" style="font-size: 2.5rem; color: var(--neon-gold); margin-bottom: 10px;"></i>
+                <h2>OTORISASI KERNEL</h2>
+                <p>Bagantara Command Center v3.0</p>
+            </div>
+            
+            <div class="input-group">
+                <i class="fa-solid fa-user"></i>
+                <input type="email" id="adminEmail" placeholder="Identitas Siluman (Email)" autocomplete="off">
+            </div>
+            
+            <div class="input-group">
+                <i class="fa-solid fa-key"></i>
+                <input type="password" id="adminPassword" placeholder="Sandi Enkripsi" autocomplete="off">
+            </div>
+
+            <button id="btnLoginAdmin" class="btn-cyber">
+                <i class="fa-solid fa-bolt"></i> INISIALISASI KONEKSI
+            </button>
+        </div>
+        
+        <div class="matrix-bg"></div>
+    </div>
+
+    <div id="desktop-container" style="display: none;">
+        
+        <div id="desktop-hud">
+            <div class="hud-left">
+                <button id="menu-toggle-btn" class="taskbar-icon"><i class="fa-solid fa-bars"></i></button>
+                <span style="font-weight: bold; font-family: var(--font-mono); font-size: 1.1rem; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+                    <i class="fa-solid fa-shield-cat" style="color: var(--neon-gold);"></i> CC-OS <span style="font-size: 0.7rem; color: var(--neon-blue);">V2.0</span>
+                </span>
+            </div>
+            <div class="hud-right">
+                <div id="sysClock" class="system-clock">00:00:00</div>
+                <button class="taskbar-icon" title="Sandi Kinetik"><i class="fa-solid fa-moon"></i></button>
+                <button id="btnLogoutDesktop" class="taskbar-icon" style="color: var(--neon-red);" title="Putuskan Sesi"><i class="fa-solid fa-power-off"></i></button>
+            </div>
+        </div>
+
+        <div id="desktop-main-layout">
+            <div id="desktop-sidebar">
+                <div class="sidebar-menu">
+                    <button class="sidebar-btn" data-app="dashboard"><i class="fa-solid fa-gauge-high"></i> <span>Dashboard</span></button>
+                    <button class="sidebar-btn" data-app="explorer"><i class="fa-solid fa-network-wired"></i> <span>Data Explorer</span></button>
+                    <button class="sidebar-btn" data-app="generator"><i class="fa-solid fa-code"></i> <span>Script Factory</span></button>
+                    <button class="sidebar-btn" data-app="dropper"><i class="fa-solid fa-truck-fast"></i> <span>Payload Dropper</span></button>
+                    <button class="sidebar-btn" data-app="rules"><i class="fa-solid fa-shield-halved"></i> <span>Security Rules</span></button>
+                    <button class="sidebar-btn" data-app="burner"><i class="fa-solid fa-fire-flame-curved"></i> <span>Burner Factory</span></button>
+                    <button class="sidebar-btn" data-app="comms"><i class="fa-solid fa-vr-cardboard"></i> <span>Burner Comms</span></button>
+                    <button class="sidebar-btn" data-app="logs"><i class="fa-solid fa-clock-rotate-left"></i> <span>System Logs</span></button>
+                    <button class="sidebar-btn" data-app="radar"><i class="fa-solid fa-satellite-dish"></i> <span>Armada Radar</span></button>
+                    <button class="sidebar-btn" data-app="forensics"><i class="fa-solid fa-microscope"></i> <span>OSINT Forensics</span></button>
+                    <button class="sidebar-btn" data-app="intelligence"><i class="fa-solid fa-radiation"></i> <span>Cyber Weapon</span></button>
+                </div>
+            </div>
+
+            <div id="desktop-workspace">
+                <div id="cyberModalAlert" class="cyber-modal">
+                    <div id="cyberBoxAlert" class="cyber-box">
+                        <i id="cyberAlertIcon" class="fa-solid fa-circle-info fa-bounce" style="color: var(--neon-blue); font-size: 3rem; margin-bottom: 15px;"></i>
+                        <h3 id="cyberAlertTitle" style="color: var(--neon-blue); font-family: var(--font-mono); margin-bottom: 10px;">INFORMASI</h3>
+                        <p id="cyberAlertMessage" style="color: var(--text-white); font-size: 0.9rem; margin-bottom: 25px;">Pesan sistem.</p>
+                        <button id="btnCyberAlertClose" class="btn-cyber" onclick="tutupCyberAlert()">MENGERTI</button>
+                    </div>
+                </div>
+
+                <div id="cyberModalConfirm" class="cyber-modal">
+                    <div id="cyberBoxConfirm" class="cyber-box" style="border-top-color: var(--neon-red);">
+                        <i id="cyberConfirmIcon" class="fa-solid fa-triangle-exclamation fa-fade" style="color: var(--neon-red); font-size: 3rem; margin-bottom: 15px;"></i>
+                        <p id="cyberConfirmMessage" style="color: var(--text-white); font-size: 0.95rem; margin-bottom: 25px; line-height: 1.5;">Apakah Anda yakin?</p>
+                        <div style="display: flex; gap: 10px; width: 100%;">
+                            <button class="btn-cyber" style="flex:1; border-color: var(--text-muted); color: var(--text-muted);" onclick="tutupCyberConfirm(false)">BATAL</button>
+                            <button id="btnCyberConfirmOK" class="btn-cyber" style="flex:1; background: rgba(239,68,68,0.15); border-color: var(--neon-red); color: var(--neon-red);" onclick="tutupCyberConfirm(true)"><i class="fa-solid fa-bolt"></i> EKSEKUSI</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
+
+    <script src="js/ui/cyber-dialog.js"></script>
+    <script src="js/core/admin-auth.js"></script>
+    <script src="js/desktop/window-manager.js"></script>
+    <script src="js/desktop/taskbar.js"></script>
+    
+    <script src="js/modules/module-dashboard.js"></script>
+    <script src="js/modules/module-explorer.js"></script>
+    <script src="js/modules/module-generator.js"></script>
+    <script src="js/modules/module-dropper.js"></script>
+    <script src="js/modules/module-rules.js"></script>
+    <script src="js/modules/module-burner.js"></script>
+    <script src="js/modules/module-comms.js"></script>
+    <script src="js/modules/module-logs.js"></script>
+    <script src="js/modules/module-radar.js"></script>
+    <script src="js/modules/module-forensics.js"></script>
+    <script src="js/modules/module-intelligence.js"></script>
+
+</body>
+</html>
